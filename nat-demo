@@ -1,0 +1,155 @@
+#!/bin/env python
+
+import time
+import paramiko
+from config import *
+
+default_args = [
+    ('--username', 'admin'),
+    ('--password', 'contrail123'),
+    ('--region', 'RegionOne'),
+    ('--tenant', 'demo'),
+    ('--api-server', '127.0.0.1')]
+
+class NatDemo():
+    def __init__(self):
+        self.argv_orig = sys.argv
+        self.mgmt_addr = None
+
+    def argv_set(self, cmd):
+        args = cmd.split()
+        sys.argv = self.argv_orig + args
+        for arg in default_args:
+            if not arg[0] in sys.argv:
+                sys.argv.insert(1, arg[0])
+                sys.argv.insert(2, arg[1])
+
+    def addIPAM(self):
+        print 'Adding IPAM.'
+        cmd = 'add ipam demo-ipam'
+        self.argv_set(cmd)
+        config = ConfigShell()
+        args = config.parse()
+        config.clients(args)
+        config.execute(args)
+
+    def createEnterpriseVN(self):
+        print 'Creating Enterprise VN.'
+        cmd = 'add network Enterprise ' + \
+                '--ipam demo-ipam ' + \
+                '--subnet 192.168.11.0/24 ' + \
+                '--gateway 192.168.11.254 '
+
+        self.argv_set(cmd)
+        config = ConfigShell()
+        args = config.parse()
+        config.clients(args)
+        config.execute(args)
+
+    def createManagementVN(self):
+        print 'Creating Management VN.'
+        cmd = 'add network Management ' + \
+                '--ipam demo-ipam ' + \
+                '--subnet 192.168.12.0/24 ' + \
+                '--gateway 192.168.12.254 '
+
+        self.argv_set(cmd)
+        config = ConfigShell()
+        args = config.parse()
+        config.clients(args)
+        config.execute(args)
+
+    def launchUbuntuVMinEntVN(self):
+        print 'Launching Ubuntu VM in Enterprise VN.'
+        cmd = 'add vm Enterprise-VM-1 ' + \
+                '--image Ubuntu ' + \
+                '--flavor m1.small ' + \
+                '--network Enterprise'
+
+        self.argv_set(cmd)
+        config = ConfigShell()
+        args = config.parse()
+        config.clients(args)
+        config.execute(args)
+
+    def createNATServiceTemplate(self):
+        print 'Creating Service Template for NAT service.'
+        cmd = 'add service-template Internet-Access-Template ' + \
+                '--mode in-network-nat ' + \
+                '--type firewall ' + \
+                '--image NAT-Service ' + \
+                '--flavor m1.medium ' + \
+                '--interface-type management ' + \
+                '--interface-type left ' + \
+                '--interface-type right '
+
+        self.argv_set(cmd)
+        config = ConfigShell()
+        args = config.parse()
+        config.clients(args)
+        config.execute(args)
+
+    def createNATServiceInstance(self):
+        print 'Creating Service Instance for NAT service.'
+        cmd = 'add service-instance Enterprise-Internet-Access-Instance ' + \
+                '--template Internet-Access-Template ' + \
+                '--management-network Management ' + \
+                '--left-network Enterprise ' + \
+                '--right-network Public '
+
+        self.argv_set(cmd)
+        config = ConfigShell()
+        args = config.parse()
+        config.clients(args)
+        config.execute(args)
+
+    def createPolicy(self):
+        print 'Creating Policy connecting Enterprise to Public via NAT service.'
+        cmd = 'add policy Enterprise-Internet-Access-Policy ' + \
+                '--direction <> ' + \
+                '--src-net Enterprise ' + \
+                '--dst-net Public ' + \
+                '--action service ' + \
+                '--service Enterprise-Internet-Access-Instance'
+
+        self.argv_set(cmd)
+        config = ConfigShell()
+        args = config.parse()
+        config.clients(args)
+        config.execute(args)
+
+    def attachPolicyEnterprise(self):
+        print 'Attaching Policy to Enterprise network.'
+        cmd = 'add network Enterprise ' + \
+                '--policy Enterprise-Internet-Access-Policy'
+
+        self.argv_set(cmd)
+        config = ConfigShell()
+        args = config.parse()
+        config.clients(args)
+        config.execute(args)
+
+    def attachPolicyPublic(self):
+        print 'Attaching Policy to Public network.'
+        cmd = 'add network Public ' + \
+                '--policy Enterprise-Internet-Access-Policy'
+
+        self.argv_set(cmd)
+        config = ConfigShell()
+        args = config.parse()
+        config.clients(args)
+        config.execute(args)
+
+if __name__ == '__main__':
+    nat = NatDemo()
+    nat.addIPAM()
+    nat.createEnterpriseVN()
+    nat.createManagementVN()
+    nat.launchUbuntuVMinEntVN()
+    nat.createNATServiceTemplate()
+    nat.createNATServiceInstance()
+    nat.createPolicy()
+    nat.attachPolicyEnterprise()
+    nat.attachPolicyPublic()
+    
+    
